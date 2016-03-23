@@ -185,16 +185,22 @@ def _find(current_dir, patterns):
   match the corresponding pattern in patterns"""
   pattern = patterns[0]
   patterns = patterns[1:]
-  try:
-    entries = os.listdir(current_dir)
-  except OSError as e:
-    log.exception(e)
-    entries = []
 
+  if _contains_wildcard(pattern):
+     try:
+       listdir = os.listdir(current_dir)
+     except OSError as e:
+       log.exception(e)
+       listdir = []
+  else:
+    listdir = []
+
+  entries = listdir if _contains_wildcard(pattern) else [ pattern ]
   subdirs = [e for e in entries if isdir( join(current_dir,e) )]
   matching_subdirs = match_entries(subdirs, pattern)
 
   if len(patterns) == 1 and rrdtool: #the last pattern may apply to RRD data sources
+    entries = listdir if _contains_wildcard(pattern) else [ pattern + ".rrd" ]
     files = [e for e in entries if isfile( join(current_dir,e) )]
     rrd_files = match_entries(files, pattern + ".rrd")
 
@@ -213,11 +219,16 @@ def _find(current_dir, patterns):
         yield match
 
   else: #we've got the last pattern
+    entries = listdir if _contains_wildcard(pattern) else [ pattern + '.wsp', pattern + '.wsp.gz', pattern + '.rrd' ]
     files = [e for e in entries if isfile( join(current_dir,e) )]
     matching_files = match_entries(files, pattern + '.*')
 
     for basename in matching_files + matching_subdirs:
       yield join(current_dir, basename)
+
+
+def _contains_wildcard(pattern):
+  return pattern.find('{') > -1 or pattern.find('[') > -1 or pattern.find('*') > -1
 
 
 def _deduplicate(entries):
